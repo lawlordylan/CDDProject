@@ -1,0 +1,21 @@
+CC=g++
+CFLAGS= -std=c++11 -pthread
+FILES= $(wildcard *.cpp)
+OBJ= $(FILES:.cpp=.o)
+OUT_EXE=WaTor
+
+build: $(OBJ)
+	$(CC) -o $(OUT_EXE) $(FILES) $(CFLAGS) $(DEBUGFLAGS)
+
+gameObject.o: gameObject.cpp
+	$(CC) -c -o $@ $< $(CFLAGS) $(DEBUGFLAGS)
+WaTor.o: WaTor.cpp gameObject.h
+	$(CC) -c -o $@ $< $(CFLAGS) $(DEBUGFLAGS)
+
+
+
+debug: DEBUGFLAGS = -ddebug
+debug: build
+
+clean:
+	rm *.o
