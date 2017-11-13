@@ -1,13 +1,10 @@
 CC=g++
 CFLAGS= -std=c++11 -pthread
-FILES= WaTor.cpp gameObject.cpp
+FILES= WaTor.cpp 
 OUT_EXE=WaTor
 
 build: $(FILES)
-	$(CC) -o $(OUT_EXE) $(FILES) $(CFLAGS) $(DEBUGFLAGS)
-
-debug: DEBUGFLAGS = -ddebug
-debug: build
+	$(CC) -o $(OUT_EXE) $(FILES) $(CFLAGS)
 
 clean:
 	rm *.o
