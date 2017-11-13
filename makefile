@@ -8,3 +8,11 @@ build: $(FILES)
 
 clean:
 	rm *.o
+
+sfmlrun: main.o
+	g++ -c main.cpp
+	g++ main.o -o main -lsfml-graphics -lsfml-window -lsfml-system
+	./main
+
+sfmlcompile: 
+	g++ -c main.cpp
