@@ -1,8 +1,9 @@
-
+#include <SFML/Graphics.hpp>
 #include <stdio.h>      /* printf, scanf, puts, NULL */
 #include <stdlib.h>     /* srand, rand */
 #include <time.h>       /* time */
 #include <iostream>
+#include <fstream>
 #include <vector>
 #include <thread>
 #include <chrono>
@@ -14,6 +15,7 @@ class Tile
 public:
   char type;
   char symbol;
+  sf::RectangleShape sprite;
   int food;
   int age;
   int turnUpdated;
@@ -22,6 +24,8 @@ public:
   {
     type = 'w';
     symbol = ' ';
+    sprite = sf::RectangleShape(sf::Vector2f(10,10));
+    sprite.setFillColor(sf::Color::Blue);
     food = 0;
     age = 0;
     turnUpdated = 0;
@@ -30,6 +34,8 @@ public:
   {
     type = 'w';
     symbol = ' ';
+    sprite = sf::RectangleShape(sf::Vector2f(10,10));
+    sprite.setFillColor(sf::Color::Blue);
     food = 0;
     age = 0;
     turnUpdated = turn;
@@ -40,6 +46,8 @@ public:
       {
 	type = 'f';
 	symbol = '-';
+	sprite = sf::RectangleShape(sf::Vector2f(10,10));
+	sprite.setFillColor(sf::Color::Green);
 	food = 0;
 	age = a;
 	turnUpdated = turn;
@@ -48,74 +56,116 @@ public:
       {
 	type = 's';
 	symbol = '#';
+	sprite = sf::RectangleShape(sf::Vector2f(10,10));
+	sprite.setFillColor(sf::Color::Red);
 	food = 0;
 	age = a;
 	turnUpdated = turn;
       }
   }
 };
-
-const int height = 28;
-const int width = 64;
+int height = 100;
+int width = 100;
+//160000
+const int spriteSize = 5;
 const int fishBreed = 3;
 const int sharkBreed = 10;
 const int starve = 3;
 
-void Draw(Tile world[width][height]);
-void Init(Tile world[width][height], int numFish, int numSharks);
-void Sim(Tile world[width][height], int day, int &numFish,int &numSharks);
-void MoveFish(Tile world[width][height], int x, int y, int day, int &numFish);
-void MoveShark(Tile world[width][height], int x, int y, int day, int &numShark);
-void MoveSharkEat(Tile world[width][height], int x, int y, int day, int &numShark, int &numFish);
-bool IsEmpty(Tile world[width][height], int x, int y);
-bool HasFish(Tile world[width][height], int x, int y);
+void Init(vector<vector<Tile> > &world, int numFish, int numSharks, int spriteH, int spriteW);
+void Sim(vector<vector<Tile> > &world, int day, int &numFish,int &numSharks,int spriteH, int spriteW);
+void MoveFish(vector<vector<Tile> > &world, int x, int y, int day, int &numFish,int spriteH, int spriteW);
+void MoveShark(vector<vector<Tile> > &world, int x, int y, int day, int &numShark,int spriteH, int spriteW);
+void MoveSharkEat(vector<vector<Tile> > &world, int x, int y, int day, int &numShark, int &numFish,int spriteH, int spriteW);
+bool IsEmpty(vector<vector<Tile> > &world, int x, int y);
+bool HasFish(vector<vector<Tile> > &world, int x, int y);
 int CheckSides(int dest);
 int CheckTop(int dest);
 
-int main()
+int main(int argc, char *argv[])
 {
+  if(argc > 1)
+    {
+      height = atoi(argv[1]);
+      width = atoi(argv[1]);
+    }
+  int screenW = width * spriteSize;
+  int screenH = height * spriteSize;
+  sf::RenderWindow window(sf::VideoMode(screenW, screenH), "WaTor");
   srand(time(NULL));
-  int numFish = 850;
-  int numSharks = 85;
+  int tiles = width * height ;
+  int numFish = tiles/4;
+  int numSharks = tiles/8;
   int day = 0;
 
-  Tile world[width][height];
-  Init(world, numFish, numSharks);
-  while (true)
+  int xPos;
+  int yPos;
+  int spriteH = screenH/height;
+  int spriteW = screenW/width;
+
+  vector<vector<Tile> > world;
+  world.resize(width);
+  for(int i = 0; i < width; ++i)
     {
-      Draw(world);
-      cout << "Day: " << day << " Fish: " << numFish << "Sharks: " << numSharks<< endl;
-      day++;
-      Sim(world,day,numFish,numSharks);
-      this_thread::sleep_for(chrono::milliseconds(200));
+      world[i].resize(height);
     }
+  Init(world, numFish, numSharks, spriteH, spriteW);
+  time_t end = time(NULL) + 15;
+  while (time(NULL) <= end)
+    {
+      sf::Event event;
+      while (window.pollEvent(event))
+        {
+	  if (event.type == sf::Event::Closed)
+	    window.close();
+        }
+
+      window.clear(sf::Color::Blue);
+		
+      for(int i = 0; i < width; ++i){
+	for(int j = 0; j < height; ++j){
+	  window.draw(world[i][j].sprite);
+	}
+      }
+     
+      window.display();
+      day++;
+      Sim(world,day,numFish,numSharks, spriteH, spriteW);
+      //this_thread::sleep_for(chrono::milliseconds(50));
+    }
+  ofstream myfile;
+  myfile.open ("benchmarking_15sec.txt",ios::app);
+  myfile << height << "x" << width << "\t iterations:" << day << "\t " << day/15 << "fps" << "\n";
+  myfile.close();
   return 0;
 }
 
-void Draw(Tile world[width][height])
-{
-  system("clear");
-  for (int y = 0; y < height; y++)
-    {
-      for (int x = 0; x < width; x++)
-	{
-	  cout << world[x][y].symbol;
-	}
-      cout << endl;
-    }
-  cout << endl;	
-}
-
-void Init(Tile world[width][height], int numFish, int numSharks)
+void Init(vector<vector<Tile> > &world, int numFish, int numSharks, int spriteH, int spriteW)
 {
   int day = 0;
+  int xPos = 0;
+  int yPos = 0;
+  for (int y = 0; y < height; y++)
+    {
+      yPos = spriteH * y;
+      for (int x = 0; x < width; x++)
+	{
+	  xPos = spriteH * x;
+	  world[x][y].sprite.setPosition(xPos,yPos);
+	  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));	  
+	}
+    } 
   while (numFish > 0)
     {
       int x = rand() % width;
       int y = rand() % height;
+      yPos = spriteH * y;
+      xPos = spriteH * x;
       if (world[x][y].type = 'w')
 	{
 	  world[x][y] = Tile('f', rand() % fishBreed, day);
+	  world[x][y].sprite.setPosition(xPos,yPos);
+	  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 	  numFish--;
 	}
     }
@@ -123,15 +173,19 @@ void Init(Tile world[width][height], int numFish, int numSharks)
     {
       int x = rand() % width;
       int y = rand() % height;
+      yPos = spriteH * y;
+      xPos = spriteH * x;
       if (world[x][y].type = 'w')
 	{
 	  world[x][y] = Tile('s', rand() % sharkBreed, day);
+	  world[x][y].sprite.setPosition(xPos,yPos);
+	  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 	  numSharks--;
 	}
     }
 }
 
-void Sim(Tile world[width][height], int day, int &numFish, int &numSharks)
+void Sim(vector<vector<Tile> > &world, int day, int &numFish, int &numSharks,int spriteH, int spriteW)
 {
   for (int y = 0; y < height; y++)
     {
@@ -145,21 +199,25 @@ void Sim(Tile world[width][height], int day, int &numFish, int &numSharks)
 		}
 	      else if (world[x][y].type == 'f')
 		{
-		  MoveFish(world, x, y, day, numFish);
+		  MoveFish(world, x, y, day, numFish, spriteH, spriteW);
 		}
 	      else
 		{
-		  MoveSharkEat(world, x, y, day, numSharks, numFish);
+		  MoveSharkEat(world, x, y, day, numSharks, numFish, spriteH, spriteW);
 		}
 	    }
 	}
     }
 }
 
-void MoveFish(Tile world[width][height], int x, int y, int day, int &numFish)
+void MoveFish(vector<vector<Tile> > &world, int x, int y, int day, int &numFish, int spriteH, int spriteW)
 {
   int x2 = x;
   int y2 = y;
+  int yPos = spriteH * y;
+  int xPos = spriteH * x;
+  int y2Pos = spriteH * y;
+  int x2Pos = spriteH * x;
   bool north = IsEmpty(world, x, y - 1);
   bool south = IsEmpty(world, x, y + 1);
   bool east = IsEmpty(world, x + 1, y);
@@ -182,72 +240,100 @@ void MoveFish(Tile world[width][height], int x, int y, int day, int &numFish)
 	  if (direction == 1 && north)
 	    {
 	      y2 = CheckTop(y2 - 1);
+	      y2Pos = spriteH * y2;
 	      world[x2][y2] = world[x][y];
 	      world[x2][y2].age++;
 	      world[x2][y2].turnUpdated = day;
+	      world[x2][y2].sprite.setFillColor(sf::Color::Green);
+	      world[x2][y2].sprite.setPosition(x2Pos,y2Pos);
 	      if (world[x2][y2].age >= fishBreed)
 		{
 		  world[x][y] = Tile('f', 0, day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		  world[x2][y2].age = 0;
 		  numFish++;
 		}
 	      else
 		{
 		  world[x][y] = Tile(day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		}
 	      break;
 	    }
 	  else if (direction == 2 && south)
 	    {
 	      y2 = CheckTop(y2 + 1);
+	      y2Pos = spriteH * y2;
 	      world[x2][y2] = world[x][y];
 	      world[x2][y2].age++;
 	      world[x2][y2].turnUpdated = day;
+	      world[x2][y2].sprite.setFillColor(sf::Color::Green);
+	      world[x2][y2].sprite.setPosition(x2Pos,y2Pos);
 	      if (world[x2][y2].age >= fishBreed)
 		{
 		  world[x][y] = Tile('f', 0, day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		  world[x2][y2].age = 0;
 		  numFish++;
 		}
 	      else
 		{
 		  world[x][y] = Tile(day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		}
 	      break;
 	    }
 	  else if (direction == 3 && east)
 	    {
 	      x2 = CheckSides(x2 + 1);
+	      x2Pos = spriteH * x2;
 	      world[x2][y2] = world[x][y];
 	      world[x2][y2].age++;
 	      world[x2][y2].turnUpdated = day;
+	      world[x2][y2].sprite.setFillColor(sf::Color::Green);
+	      world[x2][y2].sprite.setPosition(x2Pos,y2Pos);
 	      if (world[x2][y2].age >= fishBreed)
 		{
 		  world[x][y] = Tile('f', 0, day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		  world[x2][y2].age = 0;
 		  numFish++;
 		}
 	      else
 		{
 		  world[x][y] = Tile(day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		}
 	      break;
 	    }
 	  else if (direction == 4 && west)
 	    {
 	      x2 = CheckSides(x2 - 1);
+	      x2Pos = spriteH * x2;
 	      world[x2][y2] = world[x][y];
 	      world[x2][y2].age++;
 	      world[x2][y2].turnUpdated = day;
+	      world[x2][y2].sprite.setFillColor(sf::Color::Green);
+	      world[x2][y2].sprite.setPosition(x2Pos,y2Pos);
 	      if (world[x2][y2].age >= fishBreed)
 		{
 		  world[x][y] = Tile('f', 0, day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		  world[x2][y2].age = 0;
 		  numFish++;
 		}
 	      else
 		{
 		  world[x][y] = Tile(day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		}
 	      break;
 	    }
@@ -259,10 +345,14 @@ void MoveFish(Tile world[width][height], int x, int y, int day, int &numFish)
     }
 }
 
-void MoveShark(Tile world[width][height], int x, int y, int day, int &numShark)
+void MoveShark(vector<vector<Tile> > &world, int x, int y, int day, int &numShark, int spriteH, int spriteW)
 {
   int x2 = x;
   int y2 = y;
+  int yPos = spriteH * y;
+  int xPos = spriteH * x;
+  int y2Pos = spriteH * y;
+  int x2Pos = spriteH * x;
   bool north = IsEmpty(world, x, y - 1);
   bool south = IsEmpty(world, x, y + 1);
   bool east = IsEmpty(world, x + 1, y);
@@ -285,72 +375,100 @@ void MoveShark(Tile world[width][height], int x, int y, int day, int &numShark)
 	  if (direction == 1 && north)
 	    {
 	      y2 = CheckTop(y2 - 1);
+	      y2Pos = spriteH * y2;
 	      world[x2][y2] = world[x][y];
 	      world[x2][y2].age++;
 	      world[x2][y2].turnUpdated = day;
+	      world[x2][y2].sprite.setFillColor(sf::Color::Red);
+	      world[x2][y2].sprite.setPosition(x2Pos,y2Pos);
 	      if (world[x2][y2].age >= sharkBreed)
 		{
 		  world[x][y] = Tile('s', 0, day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		  world[x2][y2].age = 0;
 		  numShark++;
 		}
 	      else
 		{
 		  world[x][y] = Tile(day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		}
 	      break;
 	    }
 	  else if (direction == 2 && south)
 	    {
 	      y2 = CheckTop(y2 + 1);
+	      y2Pos = spriteH * y2;
 	      world[x2][y2] = world[x][y];
 	      world[x2][y2].age++;
 	      world[x2][y2].turnUpdated = day;
+	      world[x2][y2].sprite.setFillColor(sf::Color::Red);
+	      world[x2][y2].sprite.setPosition(x2Pos,y2Pos);
 	      if (world[x2][y2].age >= sharkBreed)
 		{
 		  world[x][y] = Tile('s', 0, day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		  world[x2][y2].age = 0;
 		  numShark++;
 		}
 	      else
 		{
 		  world[x][y] = Tile(day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		}
 	      break;
 	    }
 	  else if (direction == 3 && east)
 	    {
 	      x2 = CheckSides(x2 + 1);
+	      x2Pos = spriteH * x2;
 	      world[x2][y2] = world[x][y];
 	      world[x2][y2].age++;
 	      world[x2][y2].turnUpdated = day;
+	      world[x2][y2].sprite.setFillColor(sf::Color::Red);
+	      world[x2][y2].sprite.setPosition(x2Pos,y2Pos);
 	      if (world[x2][y2].age >= sharkBreed)
 		{
 		  world[x][y] = Tile('s', 0, day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		  world[x2][y2].age = 0;
 		  numShark++;
 		}
 	      else
 		{
 		  world[x][y] = Tile(day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		}
 	      break;
 	    }
 	  else if (direction == 4 && west)
 	    {
 	      x2 = CheckSides(x2 - 1);
+	      x2Pos = spriteH * x2;
 	      world[x2][y2] = world[x][y];
 	      world[x2][y2].age++;
 	      world[x2][y2].turnUpdated = day;
+	      world[x2][y2].sprite.setFillColor(sf::Color::Red);
+	      world[x2][y2].sprite.setPosition(x2Pos,y2Pos);
 	      if (world[x2][y2].age >= sharkBreed)
 		{
 		  world[x][y] = Tile('s', 0, day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		  world[x2][y2].age = 0;
 		  numShark++;
 		}
 	      else
 		{
 		  world[x][y] = Tile(day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		}
 	      break;
 	    }
@@ -362,10 +480,14 @@ void MoveShark(Tile world[width][height], int x, int y, int day, int &numShark)
     }
 }
 
-void MoveSharkEat(Tile world[width][height], int x, int y, int day, int &numShark, int &numFish)
+void MoveSharkEat(vector<vector<Tile> > &world, int x, int y, int day, int &numShark, int &numFish, int spriteH, int spriteW)
 {
   int x2 = x;
   int y2 = y;
+  int yPos = spriteH * y;
+  int xPos = spriteH * x;
+  int y2Pos = spriteH * y;
+  int x2Pos = spriteH * x;
   bool north = HasFish(world, x, y - 1);
   bool south = HasFish(world, x, y + 1);
   bool east = HasFish(world, x + 1, y);
@@ -381,11 +503,13 @@ void MoveSharkEat(Tile world[width][height], int x, int y, int day, int &numShar
       if (world[x][y].food >= starve)
 	{
 	  world[x][y] = Tile(day);
+	  world[x][y].sprite.setPosition(xPos,yPos);
+	  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 	  numShark--;
 	}
       else
 	{
-	  MoveShark(world, x, y, day, numShark);
+	  MoveShark(world, x, y, day, numShark, spriteH, spriteW);
 	}
     }
   else
@@ -397,76 +521,104 @@ void MoveSharkEat(Tile world[width][height], int x, int y, int day, int &numShar
 	  if (direction == 1 && north)
 	    {
 	      y2 = CheckTop(y2 - 1);
+	      y2Pos = spriteH * y2;
 	      world[x2][y2] = world[x][y];
 	      world[x2][y2].age++;
 	      world[x2][y2].turnUpdated = day;
 	      world[x2][y2].food = 0;
+	      world[x2][y2].sprite.setFillColor(sf::Color::Red);
+	      world[x2][y2].sprite.setPosition(x2Pos,y2Pos);
 	      if (world[x2][y2].age >= sharkBreed)
 		{
 		  world[x][y] = Tile('s', 0, day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		  world[x2][y2].age = 0;
 		  numShark++;
 		}
 	      else
 		{
 		  world[x][y] = Tile(day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		}
 	      break;
 	    }
 	  else if (direction == 2 && south)
 	    {
 	      y2 = CheckTop(y2 + 1);
+	      y2Pos = spriteH * y2;
 	      world[x2][y2] = world[x][y];
 	      world[x2][y2].age++;
 	      world[x2][y2].turnUpdated = day;
 	      world[x2][y2].food = 0;
+	      world[x2][y2].sprite.setFillColor(sf::Color::Red);
+	      world[x2][y2].sprite.setPosition(x2Pos,y2Pos);
 	      if (world[x2][y2].age >= sharkBreed)
 		{
 		  world[x][y] = Tile('s', 0, day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		  world[x2][y2].age = 0;
 		  numShark++;
 		}
 	      else
 		{
 		  world[x][y] = Tile(day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		}
 	      break;
 	    }
 	  else if (direction == 3 && east)
 	    {
 	      x2 = CheckSides(x2 + 1);
+	      x2Pos = spriteH * x2;
 	      world[x2][y2] = world[x][y];
 	      world[x2][y2].age++;
 	      world[x2][y2].turnUpdated = day;
 	      world[x2][y2].food = 0;
+	      world[x2][y2].sprite.setFillColor(sf::Color::Red);
+	      world[x2][y2].sprite.setPosition(x2Pos,y2Pos);
 	      if (world[x2][y2].age >= sharkBreed)
 		{
 		  world[x][y] = Tile('s', 0, day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		  world[x2][y2].age = 0;
 		  numShark++;
 		}
 	      else
 		{
 		  world[x][y] = Tile(day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		}
 	      break;
 	    }
 	  else if (direction == 4 && west)
 	    {
 	      x2 = CheckSides(x2 - 1);
+	      x2Pos = spriteH * x2;
 	      world[x2][y2] = world[x][y];
 	      world[x2][y2].age++;
 	      world[x2][y2].turnUpdated = day;
 	      world[x2][y2].food = 0;
+	      world[x2][y2].sprite.setFillColor(sf::Color::Red);
+	      world[x2][y2].sprite.setPosition(x2Pos,y2Pos);
 	      if (world[x2][y2].age >= sharkBreed)
 		{
 		  world[x][y] = Tile('s', 0, day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		  world[x2][y2].age = 0;
 		  numShark++;
 		}
 	      else
 		{
 		  world[x][y] = Tile(day);
+		  world[x][y].sprite.setPosition(xPos,yPos);
+		  world[x][y].sprite.setSize(sf::Vector2f(spriteH, spriteW));
 		}
 	      break;
 	    }
@@ -478,7 +630,7 @@ void MoveSharkEat(Tile world[width][height], int x, int y, int day, int &numShar
     }
 }
 
-bool IsEmpty(Tile world[width][height], int x, int y)
+bool IsEmpty(vector<vector<Tile> > &world, int x, int y)
 {
   int destX = x;
   int destY = y;
@@ -488,7 +640,7 @@ bool IsEmpty(Tile world[width][height], int x, int y)
   else return false;
 }
 
-bool HasFish(Tile world[width][height], int x, int y)
+bool HasFish(vector<vector<Tile> > &world, int x, int y)
 {
   int destX = x;
   int destY = y;
